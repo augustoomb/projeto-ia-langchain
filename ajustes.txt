@@ -1,0 +1,303 @@
+02/24
+P: Na classe ConversationalRetrievalChain, qual a diferença do condense_question_prompt
+para o combine_docs_chain_kwargs ?
+
+R: A diferença é a seguinte:
+
+• condense_question_prompt: É o prompt usado para reformular a pergunta atual com base no histórico de chat, para gerar uma "pergunta independente" focada apenas na pergunta atual.
+
+• combine_docs_chain_kwargs: São argumentos passados para a cadeia combine_docs_chain, que é responsável por combinar os documentos recuperados em uma string de contexto a ser usada para responder a pergunta.
+
+
+O argumento "prompt" dentro de combine_docs_chain_kwargs define como formatar os documentos recuperados antes de passar para o modelo de linguagem que vai gerar a resposta.
+Então em resumo:
+
+• condense_question_prompt: Reformata a pergunta 
+• combine_docs_chain_kwargs["prompt"]: Formata os documentos recuperados
+
+O primeiro foca na pergunta, o segundo nos documentos, mas ambos são prompts/templates usados em etapas diferentes do processamento da cadeia conversacional.
+Espero que isso ajude a esclarecer a diferença entre os dois! Pergunte se ainda tiver alguma dúvida.
+
+
+---------
+
+p: Quem preenche os valores de "question" e "context" dentro do código: QA_PROMPT = PromptTemplate( template=template, input_variables=["question", "context"] )
+
+R: Os valores de "question" e "context" dentro do template QA_PROMPT são preenchidos quando a cadeia de recuperação conversacional qa é invocada, especificamente neste trecho de código:
+response = self.qa({"chat_history": chat_history, "question": question})
+Então quem está preenchendo é a chamada para o método self.qa, passando um dicionário com os valores de "question" e "context". 
+O "question" vem da pergunta do usuário recebida pela função question_and_answer.
+Já o "context" é preenchido internamente pela cadeia qa - primeiro ela recupera documentos relevantes usando o retriever vectorstore, depois combina esses documentos em uma string de "contexto" usando o combine_docs_chain, e por fim passa esse contexto montado para preencher a variável "context" do template QA_PROMPT.
+Então em resumo, o fluxo é:
+
+• Recebe a pergunta do usuário
+• Recupera documentos relevantes 
+• Monta string de contexto
+• Preenche template QA_PROMPT
+• Gera resposta
+
+
+----------
+P: Se o condense_question_prompt está reformulando a pergunta do usuário para ser uma pergunta independente, porque ele precisa do "chat_history"?
+
+R: Ótima pergunta! O condense_question_prompt precisa do chat_history porque às vezes a pergunta do usuário faz referência a algo que foi dito anteriormente na conversa. 
+Por exemplo:
+
+    Usuário: O que é marketing?
+    Chatbot: Marketing é um conjunto de ações para promover e vender produtos.
+    Usuário: E publicidade?
+
+Nesse caso, a segunda pergunta "E publicidade?" está se referindo à resposta anterior sobre marketing.
+Para reformular essa segunda pergunta para ser independente, o condense_question_prompt precisa olhar o histórico e entender que o usuário está perguntando "O que é publicidade?", de forma independente.
+Então ele precisa do chat_history para interpretar corretamente perguntas que fazem referência ao contexto anterior da conversa.
+A saída do condense_question_prompt seria algo como:
+
+    "O que é publicidade?"
+
+Fazendo a pergunta ficar autocontida, sem depender do histórico.
+
+----------------
+
+
+
+Parametros para criar o LLM:        
+    # model_name="gpt-3.5-turbo"
+    # max_tokens
+    # openai_organization (apenas quando for um modelo ajustado finamente)
+
+
+
+
+
+
+# --------------------------------------------------------------------------------------
+
+
+
+
+
+Parametros para o splitter text(dividir documentos)
+
+# chunk_size: Define o tamanho máximo dos chunks (pedaços) de texto.
+            # Por exemplo, se definirmos chunk_size=1000, o texto será dividido em chunks de no máximo 1000 caracteres.
+            # Se o texto original tiver 2500 caracteres, ele será dividido em 3 chunks: o primeiro com 1000 caracteres,
+            # o segundo com 1000 caracteres e o terceiro com 500 caracteres.
+            # O valor do parâmetro chunk_size na classe RecursiveCharacterTextSplitter deve ser escolhido com base nas
+            # necessidades específicas do seu aplicativo. Aqui estão algumas diretrizes gerais:
+
+            #     - Valor mais baixo de chunk_size: Você pode usar um valor mais baixo de chunk_size quando precisar de chunks menores e mais granulares.
+            #     Isso pode ser útil em cenários onde você deseja analisar ou processar partes específicas do texto de forma mais detalhada.
+            #     Por exemplo, se você estiver realizando análises de sentimento em um texto longo, chunks menores podem ajudar a identificar
+            #     opiniões ou emoções em trechos específicos.
+
+            #     -Valor mais alto de chunk_size: Por outro lado, você pode usar um valor mais alto de chunk_size quando precisar de chunks maiores
+            #     e mais abrangentes. Isso pode ser útil em cenários onde você deseja obter uma visão geral do texto ou realizar análises em uma escala maior.
+            #     Por exemplo, se você estiver realizando análises de tópicos em um documento extenso, chunks maiores
+            #     podem ajudar a identificar os principais temas abordados.
+
+            # No entanto, é importante considerar o tamanho total do texto e a capacidade de processamento do seu sistema ao escolher o valor do chunk_size.
+            # Chunks muito pequenos podem resultar em um grande número de chunks, o que pode afetar o desempenho.
+            # Por outro lado, chunks muito grandes podem dificultar a análise ou processamento de informações específicas.
+
+
+        # --------------------------
+
+        # chunk_overlap: Define a sobreposição máxima entre os chunks. É útil ter alguma sobreposição para manter a continuidade entre os chunks. EX:
+
+            # text_splitter = RecursiveCharacterTextSplitter(
+            #     chunk_size=100,
+            #     chunk_overlap=20,
+            #     length_function=len,
+            # )
+
+            # # Texto de exemplo
+            # texto = "Este é um exemplo de texto longo que será dividido em chunks menores."
+
+            # chunks = text_splitter.split_text(texto)
+
+            # for chunk in chunks:
+            #     print(chunk)
+
+
+            # SAIDA:
+
+            # "Este é um exemplo de texto longo que será dividido em chunks menores."
+            # "texto longo que será dividido em chunks menores."
+            # "será dividido em chunks menores."
+            # "em chunks menores."
+            # "menores."
+
+            # Neste exemplo, o parâmetro chunk_overlap é definido como 20. Isso significa que cada chunk subsequente começa 20
+            # caracteres antes do chunk anterior, mantendo uma sobreposição de 20 caracteres entre eles.
+            # Isso ajuda a manter a continuidade e o contexto entre os chunks.
+
+            
+
+            # Usar um valor maior para chunk_overlap:
+            #     Quando você deseja manter uma sobreposição maior entre os chunks adjacentes.
+            #     Quando a continuidade e o contexto entre os chunks são importantes para o seu caso de uso.
+            #     Quando os chunks adjacentes têm informações importantes que se complementam.
+            # Usar um valor menor para chunk_overlap:
+            #     Quando você deseja minimizar a sobreposição entre os chunks adjacentes.
+            #     Quando a continuidade e o contexto entre os chunks não são críticos para o seu caso de uso.
+            #     Quando os chunks adjacentes são independentes e não possuem informações importantes que se complementam.
+
+
+        # --------------------------
+
+        # length_function: Define como o tamanho dos chunks é calculado. Por padrão, é contado o número de caracteres, mas é comum passar uma função de contagem de tokens.
+        # is_separator_regex: Define se os caracteres da lista de caracteres são tratados como expressões regulares.
+
+        # --------------------------
+
+        # TIPOS DE SPLITTER (QUEBRA DE TEXTO):
+
+        #     O RecursiveCharacterTextSplitter é um text splitter recomendado para dividir textos genéricos em chunks.
+        #     Ele é parametrizado por uma lista de caracteres e tenta dividir o texto com base nessa lista, na ordem em que os caracteres são fornecidos.
+        #     A lista padrão de caracteres é ["\n\n", "\n", " ", ""]. Esse text splitter tenta manter os parágrafos (e depois as frases e palavras)
+        #     juntos o máximo possível, pois essas partes do texto geralmente têm uma relação semântica mais forte. A divisão do texto é feita com base
+        #     em uma lista de caracteres, e o tamanho dos chunks é medido pelo número de caracteres.
+
+        #     CharacterTextSplitter: Este text splitter divide o texto em chunks com base em um tamanho fixo de caracteres.
+        #     Ele pode ser usado em conjunto com o tokenizer tiktoken para medir o tamanho dos chunks em tokens.
+
+        #     SpacyTextSplitter: Este text splitter utiliza o tokenizer do spaCy para dividir o texto em chunks com base em um tamanho fixo de caracteres.
+        #     Ele é útil quando se deseja dividir o texto em chunks de tamanho específico.
+
+        #     TokenTextSplitter: Este text splitter divide o texto em chunks com base em um tamanho fixo de tokens.
+        #     Ele é útil quando se deseja dividir o texto em chunks de tamanho específico em termos de tokens.
+
+        #     NLTKTextSplitter: Este text splitter utiliza o tokenizer do NLTK para dividir o texto em chunks com base em um tamanho fixo de caracteres.
+        #     Ele é útil quando se deseja dividir o texto em chunks de tamanho específico.
+
+        #     SentenceTransformersTokenTextSplitter: Este text splitter é especializado para uso com os modelos de sentence-transformer.
+        #     Ele divide o texto em chunks que se encaixam na janela de tokens do modelo de sentence-transformer desejado.
+
+        #     Hugging Face tokenizer: É possível utilizar o tokenizer do Hugging Face, como o GPT2TokenizerFast, para contar o número de tokens no texto
+        #     e dividir o texto em chunks com base em um tamanho fixo de tokens.
+
+
+
+
+
+# --------------------------------------------------------------------------------------
+
+
+
+
+
+Parametros para o create_store:
+
+    # SALVANDO NUM BANCO DE DADOS VETORIAL
+    # embedding: é usado para especificar a função de incorporação que será usada para converter os documentos em vetores de incorporação.
+    # Esses vetores de incorporação são usados para indexar e pesquisar documentos no Chroma.
+    # A função de incorporação pode ser uma função personalizada ou uma função pré-treinada fornecida por uma biblioteca de incorporação,
+    # como o SentenceTransformer. Essa função de incorporação é responsável por mapear o texto do documento em um espaço vetorial,
+    # onde a similaridade entre documentos pode ser calculada.
+
+    # -> all-MiniLM-L6-v2: Um modelo baseado no MiniLM-L6 que é treinado em uma grande quantidade de dados e é adequado para uma ampla variedade
+    # de tarefas de incorporação de texto.
+
+    # -> paraphrase-multilingual-mpnet-base-v2: Um modelo rápido baseado no Sentence Transformers que é adequado para extração de
+    # incorporações em mais de 50 idiomas.
+
+
+
+
+
+# --------------------------------------------------------------------------------------
+
+
+
+
+
+Parametros para o create_chat:
+
+# ARMAZENA O HISTÓRICO DE MENSAGENS ANTERIORES
+        #  O PARÂMETRO MEMORY_KEY É USADO PARA ESPECIFICAR O NOME DA CHAVE EM QUE O HISTÓRICO
+        #  DE CHAT SERÁ ARMAZENADO NA MEMÓRIA.
+        #  O HISTÓRICO DE CHAT É RETORNADO COMO UMA STRING CONCATENADA DE TODAS AS
+        #  MENSAGENS OU COMO UMA LISTA DE OBJETOS CHATMESSAGE, DEPENDENDO DO VALOR DO PARÂMETRO RETURN_MESSAGES
+        # --------------
+        # O buffer do ConversationSummaryBufferMemory é uma forma de memória que mantém um registro das interações recentes em uma conversa.
+        # Ele combina as funcionalidades do ConversationSummaryMemory e do ConversationBufferMemory.
+        # Em vez de simplesmente descartar as interações antigas, o buffer compila essas interações em um resumo e as utiliza juntamente
+        # com as interações mais recentes. O buffer é armazenado na memória RAM.
+        # O ConversationSummaryBufferMemory usa o comprimento dos tokens para determinar quando descartar as interações.
+        # Ele mantém um limite máximo de tokens e, quando esse limite é atingido, as interações mais antigas são compiladas em um resumo
+        # e armazenadas na memória. Dessa forma, o buffer mantém um histórico resumido das interações anteriores,
+        # permitindo que o modelo de linguagem se lembre do contexto da conversa.
+        # É importante ressaltar que o buffer ConversationSummaryBufferMemory é uma forma eficiente de armazenar informações de conversas mais longas,
+        # pois condensa as interações em um resumo, evitando o uso excessivo de tokens. No entanto, como qualquer forma de memória,
+        # ela é armazenada na memória RAM e está sujeita às limitações dessa memória.
+
+
+
+
+
+
+# --------------------------------------------------------------------------------------
+
+
+
+
+
+# o exclude_dirs seria para excluir URLs que contem wp-content ou wp-json, mas não funcionou
+# max_depth=5   faz com que a busca "desça" até 5 degraus (coloquei 5 apenas para não ter problema. Acho que o site não passa de 3), por exemplo:
+        https://agenciacontato.com.br/   => 1 degrau
+        https://agenciacontato.com.br/criaca-de-site   => 2 degraus
+        https://agenciacontato.com.br/blog/inbound   => 3 degraus
+
+# extractor=lambda x: Soup(x, "html.parser").text
+    lambda são funcoes enxutas, tipo HOFs do js. no caso, x é o parametro. Uso o Soup do BeautifulSoup, que vai converter o html em texto
+
+def load_documents(self):
+    url = "https://agenciacontato.com.br/"
+    exclude_dirs = ["wp-content", "wp-json"] 
+    loader = RecursiveUrlLoader(url=url, max_depth=5, exclude_dirs=exclude_dirs, extractor=lambda x: Soup(x, "html.parser").text)
+    
+    docs = loader.load()
+
+
+    for doc in docs:
+        print(doc.metadata['source'])
+
+
+    self.data = loader.load()
+
+
+
+
+# sugestões para melhorar respostas do langchain
+
+Aqui estão algumas maneiras de melhorar a compreensão das perguntas do usuário em um ConversationalRetrievalChain:
+
+    Ajuste o modelo de linguagem em um conjunto de dados de perguntas e respostas de conversação do seu domínio.
+    Isso ajudará o modelo a compreender melhor o contexto e a terminologia usada nas perguntas dos usuários.
+    Você pode criar seu próprio conjunto de dados ou usar um existente,
+    como o conjunto de dados de controle de qualidade conversacional do QuAC.
+
+    Use um modelo de linguagem com mais recursos de conversação, como ChatGPT.
+    Ele foi treinado especificamente para diálogo e provavelmente terá melhor desempenho em controle de qualidade conversacional.
+
+    Adicione uma etapa para parafrasear a pergunta antes de consultar o recuperador.
+    Isso pode ajudar a reescrever a pergunta para ficar mais clara e obter melhores resultados.
+    Você pode usar um modelo de paráfrase como o Parrot.
+
+    Mantenha o estado e o histórico da conversa explicitamente na cadeia.
+    Passe o contexto completo da conversa para o modelo de linguagem a cada turno.
+    Isso fornece mais contexto do que apenas a última pergunta/resposta.
+
+    Use um prompt de modelo de linguagem projetado para controle de qualidade conversacional.
+    Prompts como o prompt de controle de qualidade de conversação fornecem um exemplo de contexto de conversação.
+
+    Monitore o desempenho e ajuste a formatação do prompt, a temperatura etc.
+    conforme necessário para otimizar seu caso de uso de conversação.
+    A formatação do histórico de chat pode afetar o desempenho.
+
+    Use um modelo de linguagem auxiliar apenas para geração/reescrita de perguntas.
+    Ele pode aprender esta tarefa específica melhor do que o LM de cadeia completa.
+
+    Portanto, em resumo, aproveite dados/modelos de conversação, adicione paráfrases,
+    mantenha o estado explicitamente, use um prompt de conversação ajustado e monitore e ajuste a cadeia para obter
+    o desempenho de conversação ideal.
